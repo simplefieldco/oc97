@@ -68,6 +68,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none
 <div class="t2">'97</div>
 <div class="t3">A LO-FI 3D TOUR OF 75208<br>OCT 31 EDITION</div>
 <button id="start">PRESS START</button>
+<div class="t3" style="margin:-6px 0 14px">OR SCAN THE QR TO JUMP IN</div>
 <div class="ctl">FIND ALL 11 SPOTS + COLLECT THE MIXTAPES<br><br>KEYS: WASD / ARROWS MOVE &middot; SHIFT RUN &middot; DRAG TO LOOK<br>F/SPACE PUNCH &middot; TOUCH: LEFT THUMB MOVES &middot; RIGHT THUMB LOOKS &middot; PUSH FAR TO RUN<br><br>PARTY: SCAN THE QR WITH YOUR PHONE OR PLUG IN A GAMEPAD. FIRST TO 10 TAPES WINS</div>
 <div class="fine">NOT TO SCALE. MEMORY CARD NOT INCLUDED.<br>PUMPKINS ON EVERY OTHER PORCH.</div>
 </div>
@@ -670,13 +671,16 @@ function pollPads(){const gps=navigator.getGamepads?navigator.getGamepads():[];f
 if(!g){KICKED.delete(id);if(PLAYERS.has(id))dropPlayer(id);continue;}
 const act=g.axes.some(v=>Math.abs(v)>.3)||g.buttons.some(b=>b&&b.pressed);
 if(KICKED.has(id)){if(!act)continue;KICKED.delete(id);}
-const p=PLAYERS.get(id)||addPlayer(id,'PAD'+(i+1));if(act)p.seen=performance.now();
+const isNew=!PLAYERS.has(id);const p=PLAYERS.get(id)||addPlayer(id,'PAD'+(i+1));if(isNew)autoStart();if(act)p.seen=performance.now();
 const dz=v=>Math.abs(v)<.15?0:v;p.ix=dz(g.axes[0]||0);p.iy=dz(g.axes[1]||0);
 if(g.buttons[14]&&g.buttons[14].pressed)p.ix=-1;if(g.buttons[15]&&g.buttons[15].pressed)p.ix=1;if(g.buttons[12]&&g.buttons[12].pressed)p.iy=-1;if(g.buttons[13]&&g.buttons[13].pressed)p.iy=1;
 p.run=!!(g.buttons[0]&&g.buttons[0].pressed)||!!(g.buttons[7]&&g.buttons[7].pressed);const pb=!!((g.buttons[2]&&g.buttons[2].pressed)||(g.buttons[1]&&g.buttons[1].pressed));if(pb&&!p.pb)doPunch(p.pa);p.pb=pb;
 if(S.mode==='title'&&g.buttons[9]&&g.buttons[9].pressed)$('start').click();}}
 // phones via PeerJS (WebRTC data channels)
 let peer=null,ROOM='';
+function autoStart(){if(S.mode==='title')$('start').click();}
+// browsers block audio until someone touches the TV page; resume on the first key/click
+const wake=()=>{initAudio();if(AC&&AC.state!=='running'&&musicOn)AC.resume().catch(()=>{});};addEventListener('pointerdown',wake);addEventListener('keydown',wake);
 function makeRoom(){if(typeof Peer==='undefined'){$('jt').textContent='PHONE JOIN UNAVAILABLE';$('qr').style.display='none';return;}
 ROOM=Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random()*24)]).join('');
 peer=new Peer('oc97-'+ROOM);
@@ -684,7 +688,7 @@ peer.on('open',()=>{const url=location.origin+location.pathname.replace(/[^/]*$/
 try{new QRCode($('qr'),{text:url,width:150,height:150,correctLevel:QRCode.CorrectLevel.M});}catch(e){}
 $('jt').innerHTML='SCAN TO JOIN &middot; ROOM <b style="color:#fff">'+ROOM+'</b>';$('ju').textContent=url.replace(/^https?:\/\//,'');});
 peer.on('connection',conn=>{conn.on('data',d=>{if(!d||typeof d!=='object')return;
-if(d.t==='hi'){const p=addPlayer(conn.peer,d.name);conn.send({t:'you',name:p.name,css:p.css});}
+if(d.t==='hi'){const p=addPlayer(conn.peer,d.name);conn.send({t:'you',name:p.name,css:p.css});autoStart();}
 else if(d.t==='in'){const p=PLAYERS.get(conn.peer);if(p){p.ix=clamp(+d.x||0,-1,1);p.iy=clamp(+d.y||0,-1,1);p.run=!!d.r;touch(p,p.ix,p.iy,p.run);if(d.p!=null&&d.p!==p.pn){if(p.pn!=null){p.seen=performance.now();doPunch(p.pa);}p.pn=d.p;}}}
 else if(d.t==='start'&&S.mode==='title')$('start').click();});
 conn.on('close',()=>dropPlayer(conn.peer));conn.on('error',()=>dropPlayer(conn.peer));});
@@ -724,9 +728,18 @@ const sp={hp:5,dead:0,hurt:0,g,legs,hx,hz,x:hx,z:hz,face:0,state:'idle',tgt:null
 function targets(){const out=[];if(hostOn)out.push({who:HOST,pos:S});for(const p of PLAYERS.values())out.push({who:p,pos:p});return out;}
 function biteFX(who){if(who===HOST){$('hud').animate([{background:'rgba(255,0,0,.45)'},{background:'transparent'}],{duration:500});}
 else if(peer){const c=peer.connections[who.id];if(c)for(const k of c)if(k.open)k.send({t:'bit'});}}
+const LAIRS=[[-5,1,1.4],[96,48,1.2],[60,212,1.3],[-140,-214,1.35]],MAX_SPIDERS=3,RESPAWN=15;let spawnT=RESPAWN;
+function spidersAlive(){return SPIDERS.filter(s=>!s.dead).length;}
+function spawnSpider(){// pick the lair farthest from every player so nothing pops in on top of someone
+const who=[...(hostOn?[S]:[]),...PLAYERS.values()];let best=null,bd=-1;
+for(const L of LAIRS){if(SPIDERS.some(s=>!s.dead&&s.hx===L[0]&&s.hz===L[1]))continue;const d=who.length?Math.min(...who.map(q=>Math.hypot(q.x-L[0],q.z-L[1]))):99;if(d>bd){bd=d;best=L;}}
+if(!best||bd<25)return false;const sp=makeSpider(best[0],best[1],best[2]);sp.g.scale.setScalar(.01);sp.grow=0;if(S.mode==='play')showToast('A SPIDER HATCHED...');return true;}
+function spawnTick(dt){for(let i=SPIDERS.length-1;i>=0;i--)if(SPIDERS[i].dead===2)SPIDERS.splice(i,1);
+if(S.mode!=='play'||spidersAlive()>=MAX_SPIDERS){spawnT=RESPAWN;return;}spawnT-=dt;if(spawnT<=0){spawnT=spawnSpider()?RESPAWN:3;}}
 function stepSpider(sp,dt){if(sp.dead===2)return;
+if(sp.grow!=null){sp.grow+=dt;const k=Math.min(1,sp.grow/1.5);sp.g.scale.setScalar(sp.size*k);if(k>=1)sp.grow=null;}
 if(sp.dead){sp.dieT+=dt;const k=Math.max(0,1-sp.dieT/.6);sp.g.scale.set(sp.size*(1+sp.dieT*.8),sp.size*k,sp.size*(1+sp.dieT*.8));sp.g.rotation.y+=dt*8;if(k<=0){scene.remove(sp.g);sp.dead=2;}return;}
-if(sp.hurt>0){sp.hurt-=dt;const q=1+Math.sin(sp.hurt*60)*.08;sp.g.scale.setScalar(sp.size*q);if(sp.hurt<=0)sp.g.scale.setScalar(sp.size);}
+if(sp.hurt>0&&sp.grow==null){sp.hurt-=dt;const q=1+Math.sin(sp.hurt*60)*.08;sp.g.scale.setScalar(sp.size*q);if(sp.hurt<=0)sp.g.scale.setScalar(sp.size);}
 const SEE=14,GIVEUP=32,SPD=9.5;sp.cool=Math.max(0,sp.cool-dt);let vx=0,vz=0,spd=0;
 const T=S.mode==='play'&&sp.cool<=0?targets():[];
 if(sp.state!=='chase'){let best=null,bd=SEE;for(const t of T){const d=Math.hypot(t.pos.x-sp.x,t.pos.z-sp.z);if(d<bd){bd=d;best=t;}}
@@ -784,7 +797,7 @@ if(S.x>x0-.6&&S.x<x1+.6&&Math.abs(S.z-TRACKZ)<2.1)S.z=TRACKZ+(S.z<TRACKZ?-2.1:2.
 const near=x1>20-60&&x0<20+60&&TRAIN.wait<=0,on=near&&Math.floor(S.t*3)%2;
 XING.forEach((l,i)=>l.material.color.setHex(near&&((i%2)^on)?0xff2020:0x330000));
 const front=TRAIN.dir>0?x1:x0;if(!TRAIN.horn&&S.mode==='play'&&Math.abs(front-S.x)<70&&Math.abs(S.z-TRACKZ)<60&&TRAIN.wait<=0){TRAIN.horn=true;sfxHorn();}}
-for(const sp of SPIDERS)stepSpider(sp,dt);
+for(const sp of SPIDERS)stepSpider(sp,dt);spawnTick(dt);
 for(const a of ATOM)a.rotation.y+=dt*.7;
 for(const n of NPCS)n.position.y=Math.abs(Math.sin(S.t*1.6+n.userData.p))*.05;
 if(waterTex){waterTex.offset.x=(S.t*.03)%1;}
@@ -804,7 +817,7 @@ $('start').addEventListener('click',()=>{initAudio();if(AC&&AC.state!=='running'
 S.mode='play';S.yaw=Math.PI/2;camPos.set(S.x+7,4,S.z);$('title').classList.add('off');$('hud').classList.add('on');hostSeen=performance.now();for(const p of PLAYERS.values())p.seen=performance.now();$('join').classList.add('small');});
 const fontReady=document.fonts&&document.fonts.load?Promise.race([document.fonts.load('16px "Press Start 2P"'),new Promise(r=>setTimeout(r,2500))]):Promise.resolve();
 fontReady.catch(()=>{}).then(()=>{
-buildWorld();placeTapes(30);buildMap();try{makeSpider(-5,1,1.4);makeSpider(96,48,1.2);}catch(e){console.warn(e);}try{makeRoom();}catch(e){console.warn(e);}setHost(hostOn);
+buildWorld();placeTapes(30);buildMap();try{makeSpider(...LAIRS[0]);makeSpider(...LAIRS[1]);}catch(e){console.warn(e);}try{makeRoom();}catch(e){console.warn(e);}setHost(hostOn);
 $('tt').textContent=tapes.length;$('st').textContent=SPOTS.length;
 frame();
 });
