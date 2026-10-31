@@ -12,7 +12,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#140a1c;color:#fff;fon
 h1{font-size:20px;color:#ffd23f;text-shadow:3px 3px 0 #c2185b;margin:0 0 18px;font-weight:normal;line-height:1.4}
 input{font:inherit;font-size:16px;width:200px;padding:12px;text-align:center;text-transform:uppercase;border:3px solid #fff;background:#000;color:#ffd23f;margin-bottom:16px}
 button{font:inherit;font-size:14px;color:#000;background:#ffd23f;border:3px solid #fff;padding:14px 18px;box-shadow:4px 4px 0 #000}
-#st{font-size:9px;color:#7ef9ff;margin-top:16px;line-height:16px}
+#st{font-size:9px;color:#7ef9ff;margin-top:16px;line-height:16px;white-space:pre-line;max-width:320px}
 #pad{display:none}
 #me{position:fixed;top:12px;left:0;right:0;text-align:center;font-size:14px}
 #sc{position:fixed;top:36px;left:0;right:0;text-align:center;font-size:9px;color:#ddd}
@@ -30,6 +30,7 @@ button{font:inherit;font-size:14px;color:#000;background:#ffd23f;border:3px soli
 <body>
 <div class="scr" id="lobby">
 <h1>OAK CLIFF '97<br>CONTROLLER</h1>
+<input id="rm" maxlength="8" placeholder="ROOM CODE" autocomplete="off" style="display:none">
 <input id="nm" maxlength="6" placeholder="NAME" autocomplete="off">
 <button id="join">JOIN</button>
 <div id="st"></div>
@@ -45,17 +46,24 @@ button{font:inherit;font-size:14px;color:#000;background:#ffd23f;border:3px soli
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-const ROOM=(location.hash.slice(1)||'').toUpperCase().replace(/[^A-Z]/g,'');
+const clean=v=>(v||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,8);
+// some in-app browsers (Instagram, etc.) drop the #hash, so also accept ?room= and fall back to typing it
+let ROOM=clean(location.hash.slice(1))||clean(new URLSearchParams(location.search).get('room'));
 const st=$('st');
 $('nm').value=localStorage.getItem('oc97name')||'';
-if(!ROOM){st.textContent='NO ROOM CODE. SCAN THE QR ON THE TV.';$('join').disabled=true;}
-let kicked=false,peer,conn,inp={x:0,y:0,r:false},pn=0,dirty=true;
+if(!ROOM){$('rm').style.display='';$('rm').value=localStorage.getItem('oc97lastroom')||'';st.textContent='ENTER THE 4-LETTER ROOM CODE FROM THE TV';}
+let tries=0,retryT=null,kicked=false,peer,conn,inp={x:0,y:0,r:false},pn=0,dirty=true;
 function connect(){
   const name=($('nm').value||'').trim().toUpperCase().slice(0,6);localStorage.setItem('oc97name',name);
+  if($('rm').style.display!=='none')ROOM=clean($('rm').value);
+  if(!ROOM){st.textContent='ENTER THE ROOM CODE FROM THE TV';return;}
+  localStorage.setItem('oc97lastroom',ROOM);clearTimeout(retryT);
   st.textContent='CONNECTING TO '+ROOM+'...';
-  if(!peer||peer.destroyed){peer=new Peer();peer.on('error',e=>{st.textContent='ERROR: '+(e.type||e)+'. TAP JOIN TO RETRY.';});}
+  if(!peer||peer.destroyed){peer=new Peer();peer.on('error',e=>{
+    if(e.type==='peer-unavailable'&&tries<40){tries++;st.textContent='LOOKING FOR THE TV IN ROOM '+ROOM+'... ('+tries+')\nMAKE SURE THE GAME IS OPEN ON THE TV AND THE CODE MATCHES.';retryT=setTimeout(connect,3000);return;}
+    st.textContent='ERROR: '+(e.type||e)+'. TAP JOIN TO RETRY.';tries=0;});}
   const go=()=>{conn=peer.connect('oc97-'+ROOM,{reliable:false});
-    conn.on('open',()=>{conn.send({t:'hi',name});$('lobby').style.display='none';$('pad').style.display='block';});
+    conn.on('open',()=>{tries=0;conn.send({t:'hi',name});$('lobby').style.display='none';$('pad').style.display='block';});
     conn.on('data',d=>{if(d.t==='you'){$('me').textContent=d.name;$('me').style.color=d.css;$('knob').style.background=d.css;}
       if(d.t==='score'){$('sc').textContent='TAPES '+d.tapes+(d.win?' · '+d.win+' WINS!':'');$('sc').style.color='';if(d.idle!=null&&d.idle<=15){$('sc').textContent='MOVE OR GET BOOTED: '+d.idle+'S';$('sc').style.color='#ff4fa0';if(navigator.vibrate)navigator.vibrate(40);}}
       if(d.t==='kick'){kicked=true;}

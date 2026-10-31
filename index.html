@@ -677,14 +677,17 @@ if(g.buttons[14]&&g.buttons[14].pressed)p.ix=-1;if(g.buttons[15]&&g.buttons[15].
 p.run=!!(g.buttons[0]&&g.buttons[0].pressed)||!!(g.buttons[7]&&g.buttons[7].pressed);const pb=!!((g.buttons[2]&&g.buttons[2].pressed)||(g.buttons[1]&&g.buttons[1].pressed));if(pb&&!p.pb)doPunch(p.pa);p.pb=pb;
 if(S.mode==='title'&&g.buttons[9]&&g.buttons[9].pressed)$('start').click();}}
 // phones via PeerJS (WebRTC data channels)
-let peer=null,ROOM='';
+let peer=null,ROOM='',idTries=0;
 function autoStart(){if(S.mode==='title')$('start').click();}
 // browsers block audio until someone touches the TV page; resume on the first key/click
 const wake=()=>{initAudio();if(AC&&AC.state!=='running'&&musicOn)AC.resume().catch(()=>{});};addEventListener('pointerdown',wake);addEventListener('keydown',wake);
 function makeRoom(){if(typeof Peer==='undefined'){$('jt').textContent='PHONE JOIN UNAVAILABLE';$('qr').style.display='none';return;}
-ROOM=Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random()*24)]).join('');
+// stable room code: ?room=XXXX wins, else the last code this TV used, so reloads don't break shared links
+const urlRoom=(new URLSearchParams(location.search).get('room')||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,8);
+ROOM=ROOM||urlRoom||(localStorage.getItem('oc97room')||'').replace(/[^A-Z]/g,'')||Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random()*24)]).join('');
+localStorage.setItem('oc97room',ROOM);
 peer=new Peer('oc97-'+ROOM);
-peer.on('open',()=>{const url=location.origin+location.pathname.replace(/[^/]*$/,'')+'pad.html#'+ROOM;$('qr').innerHTML='';
+peer.on('open',()=>{const url=location.origin+location.pathname.replace(/[^/]*$/,'')+'pad.html?room='+ROOM;$('qr').innerHTML='';
 try{new QRCode($('qr'),{text:url,width:150,height:150,correctLevel:QRCode.CorrectLevel.M});}catch(e){}
 $('jt').innerHTML='SCAN TO JOIN &middot; ROOM <b style="color:#fff">'+ROOM+'</b>';$('ju').textContent=url.replace(/^https?:\/\//,'');});
 peer.on('connection',conn=>{conn.on('data',d=>{if(!d||typeof d!=='object')return;
@@ -692,7 +695,7 @@ if(d.t==='hi'){const p=addPlayer(conn.peer,d.name);conn.send({t:'you',name:p.nam
 else if(d.t==='in'){const p=PLAYERS.get(conn.peer);if(p){p.ix=clamp(+d.x||0,-1,1);p.iy=clamp(+d.y||0,-1,1);p.run=!!d.r;touch(p,p.ix,p.iy,p.run);if(d.p!=null&&d.p!==p.pn){if(p.pn!=null){p.seen=performance.now();doPunch(p.pa);}p.pn=d.p;}}}
 else if(d.t==='start'&&S.mode==='title')$('start').click();});
 conn.on('close',()=>dropPlayer(conn.peer));conn.on('error',()=>dropPlayer(conn.peer));});
-peer.on('error',e=>{if(e&&e.type==='unavailable-id'){peer.destroy();makeRoom();}else if(e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error')){$('jt').textContent='RECONNECTING...';setTimeout(()=>{try{peer.reconnect();}catch(_){} },2000);}});
+peer.on('error',e=>{if(e&&e.type==='unavailable-id'){peer.destroy();idTries++;$('jt').textContent='CLAIMING ROOM '+ROOM+'...';if(idTries>6){ROOM='';localStorage.removeItem('oc97room');idTries=0;}setTimeout(makeRoom,2500);}else if(e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error')){$('jt').textContent='RECONNECTING...';setTimeout(()=>{try{peer.reconnect();}catch(_){} },2000);}});
 peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect();}catch(_){}},1500);});
 // tell phones who has which tapes every second
 setInterval(()=>{if(!peer)return;for(const p of PLAYERS.values()){if(p.id.startsWith('gp'))continue;const c=peer.connections[p.id];if(c)for(const k of c)if(k.open)k.send({t:'score',idle:Math.max(0,Math.ceil((IDLE_MS-(performance.now()-p.seen))/1000)),tapes:p.tapes,win:winner?winner.name:null});}},1000);}
