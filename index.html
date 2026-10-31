@@ -68,7 +68,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none
 <div class="t2">'97</div>
 <div class="t3">A LO-FI 3D TOUR OF 75208<br>OCT 31 EDITION</div>
 <button id="start">PRESS START</button>
-<div class="ctl">FIND ALL 11 SPOTS + COLLECT THE MIXTAPES<br><br>KEYS: WASD / ARROWS MOVE &middot; SHIFT RUN &middot; DRAG TO LOOK<br>TOUCH: LEFT THUMB MOVES &middot; RIGHT THUMB LOOKS &middot; PUSH FAR TO RUN<br><br>PARTY: SCAN THE QR WITH YOUR PHONE OR PLUG IN A GAMEPAD. FIRST TO 10 TAPES WINS</div>
+<div class="ctl">FIND ALL 11 SPOTS + COLLECT THE MIXTAPES<br><br>KEYS: WASD / ARROWS MOVE &middot; SHIFT RUN &middot; DRAG TO LOOK<br>F/SPACE PUNCH &middot; TOUCH: LEFT THUMB MOVES &middot; RIGHT THUMB LOOKS &middot; PUSH FAR TO RUN<br><br>PARTY: SCAN THE QR WITH YOUR PHONE OR PLUG IN A GAMEPAD. FIRST TO 10 TAPES WINS</div>
 <div class="fine">NOT TO SCALE. MEMORY CARD NOT INCLUDED.<br>PUMPKINS ON EVERY OTHER PORCH.</div>
 </div>
 <div id="done"><h2>YOU ARE NOW AN<br>OAK CLIFF LOCAL</h2><p id="dp"></p><button id="keep">KEEP CRUISING</button></div>
@@ -616,7 +616,7 @@ g.fillStyle='#fff';g.fillRect(MX(0),MZ(0)-1,1,2);}
 function drawMap(){mg.drawImage(mapBG,0,0);
 for(const s of SPOTS){mg.fillStyle=s.got?'#555':s.c;mg.fillRect(MX(s.x)-2,MZ(s.z)-2,4,4);if(!s.got&&Math.floor(S.t*3)%2){mg.fillStyle='#fff';mg.fillRect(MX(s.x)-1,MZ(s.z)-1,2,2);}}
 mg.fillStyle='#ffd23f';for(const t of tapes)if(!t.got)mg.fillRect(MX(t.x),MZ(t.z),1,1);
-for(const sp of SPIDERS){mg.fillStyle=sp.state==='chase'&&Math.floor(S.t*6)%2?'#fff':'#ff1a1a';mg.fillRect(MX(sp.x)-1.5,MZ(sp.z)-1.5,3,3);}
+for(const sp of SPIDERS){if(sp.dead)continue;mg.fillStyle=sp.state==='chase'&&Math.floor(S.t*6)%2?'#fff':'#ff1a1a';mg.fillRect(MX(sp.x)-1.5,MZ(sp.z)-1.5,3,3);}
 const px=MX(S.x),pz=MZ(S.z),a=S.face;mg.save();mg.translate(px,pz);mg.rotate(-a);mg.fillStyle='#ff2a2a';mg.beginPath();mg.moveTo(0,-4);mg.lineTo(3,3);mg.lineTo(-3,3);mg.closePath();mg.fill();mg.restore();}
 let bannerT=0,locName='';
 function showBanner(s){$('bn').textContent=s.n;$('bs').textContent=s.s;$('banner').classList.add('show');bannerT=3.6;}
@@ -631,7 +631,7 @@ hero.add(tagSprite('P1','#2ec4b6'));
 function addPlayer(id,name){if(PLAYERS.has(id))return PLAYERS.get(id);const [hex,css]=PCOL[pcount++%PCOL.length];
 name=(name||'P'+(pcount+1)).toUpperCase().replace(/[^A-Z0-9 ]/g,'').slice(0,6)||('P'+(pcount+1));
 const h=makeHero(hex,0x111111);h.hero.add(tagSprite(name,css));const a=rng()*6.28;
-const p={id,name,css,...h,x:S.x+Math.cos(a)*3,z:S.z+Math.sin(a)*3,face:0,phase:0,tapes:0,ix:0,iy:0,run:false,seen:performance.now()};PLAYERS.set(id,p);renderBoard();showToast(name+' JOINED');return p;}
+const p={id,name,css,...h,x:S.x+Math.cos(a)*3,z:S.z+Math.sin(a)*3,face:0,phase:0,tapes:0,ix:0,iy:0,run:false,seen:performance.now()};p.pa={who:p,pos:p,get face(){return p.face;},get pt(){return p.pt;},set pt(v){p.pt=v;},get pcd(){return p.pcd||0;},set pcd(v){p.pcd=v;}};PLAYERS.set(id,p);renderBoard();showToast(name+' JOINED');return p;}
 const IDLE_MS=60000,KICKED=new Set();let hostSeen=performance.now();
 function touch(p,x,y,r){if(Math.abs(x)>.08||Math.abs(y)>.08||r)p.seen=performance.now();}
 function bootIdle(p){showToast(p.name+' LEFT (IDLE)');if(p.id.startsWith('gp'))KICKED.add(p.id);else if(peer){const c=peer.connections[p.id];if(c)for(const k of c){try{if(k.open)k.send({t:'kick'});}catch(_){}setTimeout(()=>k.close(),300);}}dropPlayer(p.id);}
@@ -644,7 +644,8 @@ function dropPlayer(id){const p=PLAYERS.get(id);if(!p)return;scene.remove(p.hero
 let hostOn=localStorage.getItem('oc97host')!=='off';
 function setHost(on){hostOn=on;if(on&&typeof hostSeen!=='undefined')hostSeen=performance.now();localStorage.setItem('oc97host',on?'on':'off');hero.visible=on;$('hostb').textContent='P1: '+(on?'PLAYING':'WATCHING');
 if(on&&PLAYERS.size){S.x=GC.x+2;S.z=GC.z+2;}renderBoard();}
-$('hostb').addEventListener('click',()=>setHost(!hostOn));addEventListener('keydown',e=>{if(e.code==='KeyH')setHost(!hostOn);});
+$('hostb').addEventListener('click',()=>setHost(!hostOn));addEventListener('keydown',e=>{if(e.code==='KeyH')setHost(!hostOn);if((e.code==='KeyF'||e.code==='Space')&&!e.repeat&&hostOn)doPunch(HOSTA);});
+const HOSTA={who:HOST,pos:S,get face(){return S.face;},arms:null,get pt(){return S.pt;},set pt(v){S.pt=v;},get pcd(){return S.pcd||0;},set pcd(v){S.pcd=v;}};
 function renderBoard(){const all=[...(hostOn?[HOST]:[]),...PLAYERS.values()];$('board').innerHTML=(PLAYERS.size?`<span style="color:#7ef9ff">FIRST TO ${WIN} TAPES</span><br>`:'')+(PLAYERS.size?all.map(p=>`<span style="color:${p.css}">${p.name}</span> ${p.tapes}`).join('<br>'):'');}
 let toastT=0;function showToast(t){$('bn').textContent=t;$('bs').textContent='';$('banner').classList.add('show');bannerT=2;}
 function gotTape(p){p.tapes++;renderBoard();if(!winner&&PLAYERS.size&&p.tapes>=WIN){winner=p;$('bn').textContent=p.name+' WINS!';$('bs').textContent='FIRST TO '+WIN+' MIXTAPES';$('banner').classList.add('show');bannerT=8;sfxSpot();}}
@@ -657,6 +658,7 @@ collide(p,.55);p.x=clamp(p.x,BX0,BX1);p.z=clamp(p.z,BZ0,BZ1);
 for(const c of cars){const ddx=p.x-c.g.position.x,ddz=p.z-c.g.position.z,dd=Math.hypot(ddx,ddz);if(dd<2.6&&dd>0){p.x+=ddx/dd*(2.6-dd);p.z+=ddz/dd*(2.6-dd);}}
 const sp2=S.mode==='play'?spd:0;p.phase+=sp2*dt*1.5;const amp=Math.min(1,sp2/7)*.75;
 p.legs[0].rotation.x=Math.sin(p.phase)*amp;p.legs[1].rotation.x=-Math.sin(p.phase)*amp;p.arms[0].rotation.x=-Math.sin(p.phase)*amp*.8;p.arms[1].rotation.x=Math.sin(p.phase)*amp*.8;
+punchPost(p,p.arms,dt);collide(p,.55);
 p.hero.position.set(p.x,Math.abs(Math.sin(p.phase))*.08*amp,p.z);p.hero.rotation.y=p.face;
 if(S.mode==='play'){for(const t of tapes)if(!t.got&&Math.hypot(p.x-t.x,p.z-t.z)<1.8){t.got=true;scene.remove(t.m);S.tapes++;sfxTape();updHUD();gotTape(p);checkDone();}
 for(const s of SPOTS)if(!s.got&&Math.hypot(p.x-s.x,p.z-s.z)<s.r){s.got=true;S.spots++;showBanner(s);sfxSpot();updHUD();checkDone();}}}
@@ -671,7 +673,7 @@ if(KICKED.has(id)){if(!act)continue;KICKED.delete(id);}
 const p=PLAYERS.get(id)||addPlayer(id,'PAD'+(i+1));if(act)p.seen=performance.now();
 const dz=v=>Math.abs(v)<.15?0:v;p.ix=dz(g.axes[0]||0);p.iy=dz(g.axes[1]||0);
 if(g.buttons[14]&&g.buttons[14].pressed)p.ix=-1;if(g.buttons[15]&&g.buttons[15].pressed)p.ix=1;if(g.buttons[12]&&g.buttons[12].pressed)p.iy=-1;if(g.buttons[13]&&g.buttons[13].pressed)p.iy=1;
-p.run=!!(g.buttons[0]&&g.buttons[0].pressed)||!!(g.buttons[7]&&g.buttons[7].pressed);
+p.run=!!(g.buttons[0]&&g.buttons[0].pressed)||!!(g.buttons[7]&&g.buttons[7].pressed);const pb=!!((g.buttons[2]&&g.buttons[2].pressed)||(g.buttons[1]&&g.buttons[1].pressed));if(pb&&!p.pb)doPunch(p.pa);p.pb=pb;
 if(S.mode==='title'&&g.buttons[9]&&g.buttons[9].pressed)$('start').click();}}
 // phones via PeerJS (WebRTC data channels)
 let peer=null,ROOM='';
@@ -683,13 +685,27 @@ try{new QRCode($('qr'),{text:url,width:150,height:150,correctLevel:QRCode.Correc
 $('jt').innerHTML='SCAN TO JOIN &middot; ROOM <b style="color:#fff">'+ROOM+'</b>';$('ju').textContent=url.replace(/^https?:\/\//,'');});
 peer.on('connection',conn=>{conn.on('data',d=>{if(!d||typeof d!=='object')return;
 if(d.t==='hi'){const p=addPlayer(conn.peer,d.name);conn.send({t:'you',name:p.name,css:p.css});}
-else if(d.t==='in'){const p=PLAYERS.get(conn.peer);if(p){p.ix=clamp(+d.x||0,-1,1);p.iy=clamp(+d.y||0,-1,1);p.run=!!d.r;touch(p,p.ix,p.iy,p.run);}}
+else if(d.t==='in'){const p=PLAYERS.get(conn.peer);if(p){p.ix=clamp(+d.x||0,-1,1);p.iy=clamp(+d.y||0,-1,1);p.run=!!d.r;touch(p,p.ix,p.iy,p.run);if(d.p!=null&&d.p!==p.pn){if(p.pn!=null){p.seen=performance.now();doPunch(p.pa);}p.pn=d.p;}}}
 else if(d.t==='start'&&S.mode==='title')$('start').click();});
 conn.on('close',()=>dropPlayer(conn.peer));conn.on('error',()=>dropPlayer(conn.peer));});
 peer.on('error',e=>{if(e&&e.type==='unavailable-id'){peer.destroy();makeRoom();}else if(e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error')){$('jt').textContent='RECONNECTING...';setTimeout(()=>{try{peer.reconnect();}catch(_){} },2000);}});
 peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect();}catch(_){}},1500);});
 // tell phones who has which tapes every second
 setInterval(()=>{if(!peer)return;for(const p of PLAYERS.values()){if(p.id.startsWith('gp'))continue;const c=peer.connections[p.id];if(c)for(const k of c)if(k.open)k.send({t:'score',idle:Math.max(0,Math.ceil((IDLE_MS-(performance.now()-p.seen))/1000)),tapes:p.tapes,win:winner?winner.name:null});}},1000);}
+// ---------- PUNCH ----------
+function sfxPunch(hit){if(!AC)return;const t=AC.currentTime;nz(t,hit?900:2400,hit?'lowpass':'bandpass',hit?.5:.15,hit?.18:.08);if(hit)tone(t,40,.15,'square',.12);}
+// a = {who, pos (has x,z), face, arms, pt (punch timer), pcd (cooldown)}
+function doPunch(a){if(S.mode!=='play'||a.pcd>0)return;a.pcd=.4;a.pt=.22;
+const fx=-Math.sin(a.face),fz=-Math.cos(a.face);let hit=false;
+const inFront=(x,z,reach)=>{const dx=x-a.pos.x,dz=z-a.pos.z,d=Math.hypot(dx,dz);return d<reach&&d>0&&(dx*fx+dz*fz)/d>.25?d:0;};
+for(const t of targets()){if(t.who===a.who)continue;const d=inFront(t.pos.x,t.pos.z,2.8);if(d){const kx=(t.pos.x-a.pos.x)/d,kz=(t.pos.z-a.pos.z)/d;t.pos.kx=(t.pos.kx||0)+kx*22;t.pos.kz=(t.pos.kz||0)+kz*22;hit=true;
+if(t.who!==HOST&&peer){const c=peer.connections[t.who.id];if(c)for(const k of c)if(k.open)k.send({t:'hit'});}}}
+for(const sp of SPIDERS){if(sp.dead)continue;const d=inFront(sp.x,sp.z,2.4+1.6*sp.size);if(d){hit=true;sp.hp--;sp.hurt=.25;sp.x+=fx*2;sp.z+=fz*2;
+if(sp.hp<=0){sp.dead=1;sp.dieT=0;sfxHiss();showToast(a.who.name+' SQUASHED A SPIDER!');}else{sp.state='home';sp.cool=Math.max(sp.cool,1.5);showToast('SPIDER '+'#'.repeat(sp.hp)+'_'.repeat(5-sp.hp));}}}
+sfxPunch(hit);}
+// knockback slide + punch arm pose, applied each frame after walk animation
+function punchPost(o,arms,dt){o.pcd=Math.max(0,(o.pcd||0)-dt);if(o.kx||o.kz){o.x+=o.kx*dt;o.z+=o.kz*dt;const f=Math.exp(-dt*7);o.kx*=f;o.kz*=f;if(Math.hypot(o.kx,o.kz)<.3)o.kx=o.kz=0;}
+if(o.pt>0){o.pt-=dt;arms[1].rotation.x=-1.75;}}
 // ---------- SPIDERS ----------
 const SPIDERS=[];
 function makeSpider(hx,hz,size){const g=new THREE.Group();const blk=lam({color:0x0b0a0e}),hair=lam({color:0x1e1820,flatShading:true}),red=bas({color:0xff1a1a,fog:false}),mark=bas({color:0xd01020});
@@ -704,11 +720,14 @@ const knee=new THREE.Group();knee.position.x=2;upG.add(knee);const lo=new THREE.
 g.add(hip);legs.push({hip,upG,knee,ph:(k%2?Math.PI:0)+(side<0?0:Math.PI)});}
 const shadow=new THREE.Mesh(new THREE.PlaneGeometry(6,6).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:T.blob,transparent:true,depthWrite:false}));shadow.position.y=.08;g.add(shadow);
 g.scale.setScalar(size);g.position.set(hx,0,hz);scene.add(g);
-const sp={g,legs,hx,hz,x:hx,z:hz,face:0,state:'idle',tgt:null,chaseT:0,cool:0,phase:0,wx:hx,wz:hz,wT:0,size};SPIDERS.push(sp);return sp;}
+const sp={hp:5,dead:0,hurt:0,g,legs,hx,hz,x:hx,z:hz,face:0,state:'idle',tgt:null,chaseT:0,cool:0,phase:0,wx:hx,wz:hz,wT:0,size};SPIDERS.push(sp);return sp;}
 function targets(){const out=[];if(hostOn)out.push({who:HOST,pos:S});for(const p of PLAYERS.values())out.push({who:p,pos:p});return out;}
 function biteFX(who){if(who===HOST){$('hud').animate([{background:'rgba(255,0,0,.45)'},{background:'transparent'}],{duration:500});}
 else if(peer){const c=peer.connections[who.id];if(c)for(const k of c)if(k.open)k.send({t:'bit'});}}
-function stepSpider(sp,dt){const SEE=14,GIVEUP=32,SPD=9.5;sp.cool=Math.max(0,sp.cool-dt);let vx=0,vz=0,spd=0;
+function stepSpider(sp,dt){if(sp.dead===2)return;
+if(sp.dead){sp.dieT+=dt;const k=Math.max(0,1-sp.dieT/.6);sp.g.scale.set(sp.size*(1+sp.dieT*.8),sp.size*k,sp.size*(1+sp.dieT*.8));sp.g.rotation.y+=dt*8;if(k<=0){scene.remove(sp.g);sp.dead=2;}return;}
+if(sp.hurt>0){sp.hurt-=dt;const q=1+Math.sin(sp.hurt*60)*.08;sp.g.scale.setScalar(sp.size*q);if(sp.hurt<=0)sp.g.scale.setScalar(sp.size);}
+const SEE=14,GIVEUP=32,SPD=9.5;sp.cool=Math.max(0,sp.cool-dt);let vx=0,vz=0,spd=0;
 const T=S.mode==='play'&&sp.cool<=0?targets():[];
 if(sp.state!=='chase'){let best=null,bd=SEE;for(const t of T){const d=Math.hypot(t.pos.x-sp.x,t.pos.z-sp.z);if(d<bd){bd=d;best=t;}}
 if(best){sp.state='chase';sp.tgt=best;sp.chaseT=0;sfxHiss();showToast('!! SPIDER !!');}}
@@ -751,6 +770,7 @@ if(r.h){c.g.position.set(c.t,0,r.c+lane);c.g.rotation.y=c.dir>0?0:Math.PI;}else{
 const ddx=S.x-c.g.position.x,ddz=S.z-c.g.position.z,dd=Math.hypot(ddx,ddz);if(dd<2.6&&dd>0){S.x+=ddx/dd*(2.6-dd);S.z+=ddz/dd*(2.6-dd);}}
 S.phase+=spd*dt*1.5;const amp=Math.min(1,spd/7)*.75;
 legs[0].rotation.x=Math.sin(S.phase)*amp;legs[1].rotation.x=-Math.sin(S.phase)*amp;arms[0].rotation.x=-Math.sin(S.phase)*amp*.8;arms[1].rotation.x=Math.sin(S.phase)*amp*.8;
+punchPost(S,arms,dt);collide(S,.55);
 hero.position.set(S.x,Math.abs(Math.sin(S.phase))*.08*amp,S.z);hero.rotation.y=S.face;
 for(const t of tapes){if(t.got)continue;t.m.rotation.y+=dt*2.4;t.m.position.y=1.3+Math.sin(S.t*2+t.ph)*.2;
 if(S.mode==='play'&&hostOn&&Math.hypot(S.x-t.x,S.z-t.z)<1.8){t.got=true;scene.remove(t.m);S.tapes++;sfxTape();updHUD();gotTape(HOST);checkDone();}}
