@@ -55,7 +55,8 @@ function connect(){
     conn.on('open',()=>{conn.send({t:'hi',name});$('lobby').style.display='none';$('pad').style.display='block';});
     conn.on('data',d=>{if(d.t==='you'){$('me').textContent=d.name;$('me').style.color=d.css;$('knob').style.background=d.css;}
       if(d.t==='score'){$('sc').textContent='TAPES '+d.tapes+(d.win?' · '+d.win+' WINS!':'');$('sc').style.color='';if(d.idle!=null&&d.idle<=15){$('sc').textContent='MOVE OR GET BOOTED: '+d.idle+'S';$('sc').style.color='#ff4fa0';if(navigator.vibrate)navigator.vibrate(40);}}
-      if(d.t==='kick'){kicked=true;}});
+      if(d.t==='kick'){kicked=true;}
+      if(d.t==='bit'){if(navigator.vibrate)navigator.vibrate([120,60,220]);document.body.animate([{background:'#b00010'},{background:'#140a1c'}],{duration:600});}});
     conn.on('close',()=>{$('pad').style.display='none';$('lobby').style.display='flex';st.textContent=kicked?'REMOVED FOR INACTIVITY. TAP JOIN TO PLAY AGAIN.':'DISCONNECTED. TAP JOIN.';kicked=false;});
   };
   if(peer.open)go();else peer.once('open',go);
