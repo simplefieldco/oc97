@@ -629,10 +629,18 @@ hero.add(tagSprite('P1','#2ec4b6'));
 function addPlayer(id,name){if(PLAYERS.has(id))return PLAYERS.get(id);const [hex,css]=PCOL[pcount++%PCOL.length];
 name=(name||'P'+(pcount+1)).toUpperCase().replace(/[^A-Z0-9 ]/g,'').slice(0,6)||('P'+(pcount+1));
 const h=makeHero(hex,0x111111);h.hero.add(tagSprite(name,css));const a=rng()*6.28;
-const p={id,name,css,...h,x:S.x+Math.cos(a)*3,z:S.z+Math.sin(a)*3,face:0,phase:0,tapes:0,ix:0,iy:0,run:false};PLAYERS.set(id,p);renderBoard();showToast(name+' JOINED');return p;}
+const p={id,name,css,...h,x:S.x+Math.cos(a)*3,z:S.z+Math.sin(a)*3,face:0,phase:0,tapes:0,ix:0,iy:0,run:false,seen:performance.now()};PLAYERS.set(id,p);renderBoard();showToast(name+' JOINED');return p;}
+const IDLE_MS=60000,KICKED=new Set();let hostSeen=performance.now();
+function touch(p,x,y,r){if(Math.abs(x)>.08||Math.abs(y)>.08||r)p.seen=performance.now();}
+function bootIdle(p){showToast(p.name+' LEFT (IDLE)');if(p.id.startsWith('gp'))KICKED.add(p.id);else if(peer){const c=peer.connections[p.id];if(c)for(const k of c){try{if(k.open)k.send({t:'kick'});}catch(_){}setTimeout(()=>k.close(),300);}}dropPlayer(p.id);}
+// idle sweep: guests are removed after 60s with no input; P1 (if playing alongside guests) is switched to watching
+setInterval(()=>{if(S.mode!=='play')return;const now=performance.now();
+for(const p of [...PLAYERS.values()]){if(now-p.seen>IDLE_MS)bootIdle(p);}
+if(hostOn&&PLAYERS.size&&now-hostSeen>IDLE_MS){setHost(false);showToast('P1 IDLE: WATCHING');}},1000);
+addEventListener('keydown',()=>{hostSeen=performance.now();});addEventListener('pointerdown',()=>{hostSeen=performance.now();});
 function dropPlayer(id){const p=PLAYERS.get(id);if(!p)return;scene.remove(p.hero);PLAYERS.delete(id);renderBoard();}
 let hostOn=localStorage.getItem('oc97host')!=='off';
-function setHost(on){hostOn=on;localStorage.setItem('oc97host',on?'on':'off');hero.visible=on;$('hostb').textContent='P1: '+(on?'PLAYING':'WATCHING');
+function setHost(on){hostOn=on;if(on&&typeof hostSeen!=='undefined')hostSeen=performance.now();localStorage.setItem('oc97host',on?'on':'off');hero.visible=on;$('hostb').textContent='P1: '+(on?'PLAYING':'WATCHING');
 if(on&&PLAYERS.size){S.x=GC.x+2;S.z=GC.z+2;}renderBoard();}
 $('hostb').addEventListener('click',()=>setHost(!hostOn));addEventListener('keydown',e=>{if(e.code==='KeyH')setHost(!hostOn);});
 function renderBoard(){const all=[...(hostOn?[HOST]:[]),...PLAYERS.values()];$('board').innerHTML=(PLAYERS.size?`<span style="color:#7ef9ff">FIRST TO ${WIN} TAPES</span><br>`:'')+(PLAYERS.size?all.map(p=>`<span style="color:${p.css}">${p.name}</span> ${p.tapes}`).join('<br>'):'');}
@@ -655,7 +663,10 @@ function groupCenter(){const G=[...(hostOn||!PLAYERS.size?[S]:[]),...PLAYERS.val
 for(const q of G)m=Math.max(m,Math.hypot(q.x-x,q.z-z));GC.x=x;GC.z=z;GC.spread=m;}
 // gamepads: each pad is its own guest
 function pollPads(){const gps=navigator.getGamepads?navigator.getGamepads():[];for(let i=0;i<gps.length;i++){const g=gps[i];const id='gp'+i;
-if(!g){if(PLAYERS.has(id))dropPlayer(id);continue;}const p=PLAYERS.get(id)||addPlayer(id,'PAD'+(i+1));
+if(!g){KICKED.delete(id);if(PLAYERS.has(id))dropPlayer(id);continue;}
+const act=g.axes.some(v=>Math.abs(v)>.3)||g.buttons.some(b=>b&&b.pressed);
+if(KICKED.has(id)){if(!act)continue;KICKED.delete(id);}
+const p=PLAYERS.get(id)||addPlayer(id,'PAD'+(i+1));if(act)p.seen=performance.now();
 const dz=v=>Math.abs(v)<.15?0:v;p.ix=dz(g.axes[0]||0);p.iy=dz(g.axes[1]||0);
 if(g.buttons[14]&&g.buttons[14].pressed)p.ix=-1;if(g.buttons[15]&&g.buttons[15].pressed)p.ix=1;if(g.buttons[12]&&g.buttons[12].pressed)p.iy=-1;if(g.buttons[13]&&g.buttons[13].pressed)p.iy=1;
 p.run=!!(g.buttons[0]&&g.buttons[0].pressed)||!!(g.buttons[7]&&g.buttons[7].pressed);
@@ -670,13 +681,13 @@ try{new QRCode($('qr'),{text:url,width:150,height:150,correctLevel:QRCode.Correc
 $('jt').innerHTML='SCAN TO JOIN &middot; ROOM <b style="color:#fff">'+ROOM+'</b>';$('ju').textContent=url.replace(/^https?:\/\//,'');});
 peer.on('connection',conn=>{conn.on('data',d=>{if(!d||typeof d!=='object')return;
 if(d.t==='hi'){const p=addPlayer(conn.peer,d.name);conn.send({t:'you',name:p.name,css:p.css});}
-else if(d.t==='in'){const p=PLAYERS.get(conn.peer);if(p){p.ix=clamp(+d.x||0,-1,1);p.iy=clamp(+d.y||0,-1,1);p.run=!!d.r;}}
+else if(d.t==='in'){const p=PLAYERS.get(conn.peer);if(p){p.ix=clamp(+d.x||0,-1,1);p.iy=clamp(+d.y||0,-1,1);p.run=!!d.r;touch(p,p.ix,p.iy,p.run);}}
 else if(d.t==='start'&&S.mode==='title')$('start').click();});
 conn.on('close',()=>dropPlayer(conn.peer));conn.on('error',()=>dropPlayer(conn.peer));});
 peer.on('error',e=>{if(e&&e.type==='unavailable-id'){peer.destroy();makeRoom();}else if(e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error')){$('jt').textContent='RECONNECTING...';setTimeout(()=>{try{peer.reconnect();}catch(_){} },2000);}});
 peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect();}catch(_){}},1500);});
 // tell phones who has which tapes every second
-setInterval(()=>{if(!peer)return;for(const p of PLAYERS.values()){if(p.id.startsWith('gp'))continue;const c=peer.connections[p.id];if(c)for(const k of c)if(k.open)k.send({t:'score',tapes:p.tapes,win:winner?winner.name:null});}},1000);}
+setInterval(()=>{if(!peer)return;for(const p of PLAYERS.values()){if(p.id.startsWith('gp'))continue;const c=peer.connections[p.id];if(c)for(const k of c)if(k.open)k.send({t:'score',idle:Math.max(0,Math.ceil((IDLE_MS-(performance.now()-p.seen))/1000)),tapes:p.tapes,win:winner?winner.name:null});}},1000);}
 const clock=new THREE.Clock();const tmpV=new THREE.Vector3();const camPos=new THREE.Vector3(-30,30,60);
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);S.t+=dt;
 let mx=0,my=0,run=false;
@@ -731,7 +742,7 @@ function checkDone(){if(S.done||S.spots<SPOTS.length)return;S.done=true;setTimeo
 $('keep').addEventListener('click',()=>$('done').classList.remove('on'));
 setInterval(()=>{if(S.mode==='play'&&!S.done)S.playT=(S.playT||0)+1;},1000);
 $('start').addEventListener('click',()=>{initAudio();if(AC&&AC.state!=='running')AC.resume().catch(()=>{});
-S.mode='play';S.yaw=Math.PI/2;camPos.set(S.x+7,4,S.z);$('title').classList.add('off');$('hud').classList.add('on');$('join').classList.add('small');});
+S.mode='play';S.yaw=Math.PI/2;camPos.set(S.x+7,4,S.z);$('title').classList.add('off');$('hud').classList.add('on');hostSeen=performance.now();for(const p of PLAYERS.values())p.seen=performance.now();$('join').classList.add('small');});
 const fontReady=document.fonts&&document.fonts.load?Promise.race([document.fonts.load('16px "Press Start 2P"'),new Promise(r=>setTimeout(r,2500))]):Promise.resolve();
 fontReady.catch(()=>{}).then(()=>{
 buildWorld();placeTapes(30);buildMap();try{makeRoom();}catch(e){console.warn(e);}setHost(hostOn);
