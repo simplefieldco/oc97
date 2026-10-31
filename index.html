@@ -40,6 +40,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none
 #done h2{font-size:clamp(14px,4.5vw,28px);color:#ffd23f;text-shadow:3px 3px 0 #c2185b;line-height:1.5;margin:0 0 14px;font-weight:normal}
 #done p{font-size:9px;line-height:16px;color:#ddd}
 #done button{margin-top:18px;font:inherit;font-size:11px;background:#7ef9ff;border:3px solid #fff;padding:10px 14px;box-shadow:4px 4px 0 #000;cursor:pointer}
+#join{position:fixed;left:12px;bottom:12px;z-index:6;background:#140a1c;border:2px solid #fff;box-shadow:3px 3px 0 #000;padding:8px;text-align:center;font-size:8px;line-height:13px;color:#7ef9ff}
+#join.small #qr{width:84px;height:84px}#join.small #qr img,#join.small #qr canvas{width:84px!important;height:84px!important}
+#qr{background:#fff;padding:5px;width:150px;height:150px;margin:0 auto 6px}#qr img,#qr canvas{width:150px!important;height:150px!important;image-rendering:pixelated}
+#ju{color:#ffd23f;font-size:7px;max-width:170px;word-break:break-all}
+#board{position:absolute;left:12px;top:56px;font-size:9px;line-height:16px;text-shadow:2px 2px 0 #000}
 #err{position:fixed;inset:0;display:none;z-index:9;background:#000;color:#f66;font-size:10px;padding:20px;line-height:18px}
 </style>
 </head>
@@ -53,18 +58,22 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none
 <div id="loc">W DAVIS ST</div>
 <div id="banner"><div class="k">~ NOW ENTERING ~</div><div id="bn"></div><div id="bs"></div></div>
 <div id="joy"><div id="knob"></div></div>
+<div id="board"></div>
 </div>
+<div id="join"><div id="qr"></div><div id="jt">SCAN TO JOIN</div><div id="ju"></div></div>
 <div id="title">
 <div class="t1">OAK CLIFF</div>
 <div class="t2">'97</div>
 <div class="t3">A LO-FI 3D TOUR OF 75208<br>OCT 31 EDITION</div>
 <button id="start">PRESS START</button>
-<div class="ctl">FIND ALL 11 SPOTS + COLLECT THE MIXTAPES<br><br>KEYS: WASD / ARROWS MOVE &middot; SHIFT RUN &middot; DRAG TO LOOK<br>TOUCH: LEFT THUMB MOVES &middot; RIGHT THUMB LOOKS &middot; PUSH FAR TO RUN</div>
+<div class="ctl">FIND ALL 11 SPOTS + COLLECT THE MIXTAPES<br><br>KEYS: WASD / ARROWS MOVE &middot; SHIFT RUN &middot; DRAG TO LOOK<br>TOUCH: LEFT THUMB MOVES &middot; RIGHT THUMB LOOKS &middot; PUSH FAR TO RUN<br><br>PARTY: SCAN THE QR WITH YOUR PHONE OR PLUG IN A GAMEPAD. FIRST TO 10 TAPES WINS</div>
 <div class="fine">NOT TO SCALE. MEMORY CARD NOT INCLUDED.<br>PUMPKINS ON EVERY OTHER PORCH.</div>
 </div>
 <div id="done"><h2>YOU ARE NOW AN<br>OAK CLIFF LOCAL</h2><p id="dp"></p><button id="keep">KEEP CRUISING</button></div>
 <div id="err"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 (function(){
 'use strict';
@@ -503,9 +512,8 @@ for(const [a,b] of links){const A=pts[a],B=pts[b];for(let i=0;i<=12;i++){const t
 const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
 scene.add(new THREE.Points(g,new THREE.PointsMaterial({size:.35,vertexColors:true,fog:false})));}
 let sky,stars,ball,waterTex;
-const hero=new THREE.Group();
-const legs=[],arms=[];
-(()=>{const skin=lam({color:0xc98d68}),shirt=lam({color:0x2ec4b6}),pants=lam({color:0x2a3a6a}),cap=lam({color:0xe63946}),shoe=lam({color:0xf0f0f0}),blk=bas({color:0x111111});
+function makeHero(shirtC,capC){const hero=new THREE.Group();const legs=[],arms=[];
+{const skin=lam({color:0xc98d68}),shirt=lam({color:shirtC}),pants=lam({color:0x2a3a6a}),cap=lam({color:capC}),shoe=lam({color:0xf0f0f0}),blk=bas({color:0x111111});
 for(const sx of[-.19,.19]){const p=new THREE.Group();p.position.set(sx,.88,0);const l=new THREE.Mesh(new THREE.BoxGeometry(.32,.78,.34),pants);l.position.y=-.39;p.add(l);const sh=new THREE.Mesh(new THREE.BoxGeometry(.34,.16,.46),shoe);sh.position.set(0,-.8,-.05);p.add(sh);hero.add(p);legs.push(p);}
 const body=new THREE.Mesh(new THREE.BoxGeometry(.82,.78,.46),shirt);body.position.y=1.26;hero.add(body);
 for(const sx of[-.53,.53]){const p=new THREE.Group();p.position.set(sx,1.6,0);const a=new THREE.Mesh(new THREE.BoxGeometry(.24,.7,.26),shirt);a.position.y=-.3;p.add(a);const hnd=new THREE.Mesh(new THREE.BoxGeometry(.22,.18,.22),skin);hnd.position.y=-.72;p.add(hnd);hero.add(p);arms.push(p);}
@@ -514,8 +522,9 @@ const c1=new THREE.Mesh(new THREE.BoxGeometry(.6,.2,.56),cap);c1.position.y=2.27
 const c2=new THREE.Mesh(new THREE.BoxGeometry(.52,.06,.36),cap);c2.position.set(0,2.2,-.42);hero.add(c2);
 for(const sx of[-.13,.13]){const e=new THREE.Mesh(new THREE.BoxGeometry(.08,.1,.02),blk);e.position.set(sx,1.98,-.27);hero.add(e);}
 const sh=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.6).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:T.blob,transparent:true,depthWrite:false}));sh.position.y=.09;hero.add(sh);
-})();
-scene.add(hero);
+}
+scene.add(hero);return {hero,legs,arms};}
+const {hero,legs,arms}=makeHero(0x2ec4b6,0xe63946);
 const cars=[];
 function makeCar(col){const g=new THREE.Group();const bm=lam({color:col});
 const b=new THREE.Mesh(new THREE.BoxGeometry(4.3,1,1.9),bm);b.position.y=.8;g.add(b);
@@ -608,6 +617,60 @@ const px=MX(S.x),pz=MZ(S.z),a=S.face;mg.save();mg.translate(px,pz);mg.rotate(-a)
 let bannerT=0,locName='';
 function showBanner(s){$('bn').textContent=s.n;$('bs').textContent=s.s;$('banner').classList.add('show');bannerT=3.6;}
 function updHUD(){$('tp').textContent=S.tapes;$('sp').textContent=S.spots;}
+// ---------- MULTIPLAYER ----------
+const PCOL=[[0xff4fa0,'#ff4fa0'],[0xffd23f,'#ffd23f'],[0x9dff6a,'#9dff6a'],[0xff6a30,'#ff6a30'],[0xb07aff,'#b07aff'],[0x5fd0ff,'#5fd0ff'],[0xffffff,'#ffffff']];
+const WIN=10;const PLAYERS=new Map();let pcount=0,winner=null;
+const HOST={id:'host',name:'P1',css:'#2ec4b6',tapes:0};
+function tagSprite(text,css){const c=document.createElement('canvas');c.width=128;c.height=32;const g=c.getContext('2d');g.font='14px "Press Start 2P",monospace';g.textAlign='center';g.textBaseline='middle';g.fillStyle='#000';g.fillText(text,66,18);g.fillStyle=css;g.fillText(text,64,16);
+const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:canvasToTex(c),transparent:true,depthTest:false,fog:false}));sp.scale.set(3.2,.8,1);sp.position.y=3.1;sp.renderOrder=9;return sp;}
+hero.add(tagSprite('P1','#2ec4b6'));
+function addPlayer(id,name){if(PLAYERS.has(id))return PLAYERS.get(id);const [hex,css]=PCOL[pcount++%PCOL.length];
+name=(name||'P'+(pcount+1)).toUpperCase().replace(/[^A-Z0-9 ]/g,'').slice(0,6)||('P'+(pcount+1));
+const h=makeHero(hex,0x111111);h.hero.add(tagSprite(name,css));const a=rng()*6.28;
+const p={id,name,css,...h,x:S.x+Math.cos(a)*3,z:S.z+Math.sin(a)*3,face:0,phase:0,tapes:0,ix:0,iy:0,run:false};PLAYERS.set(id,p);renderBoard();showToast(name+' JOINED');return p;}
+function dropPlayer(id){const p=PLAYERS.get(id);if(!p)return;scene.remove(p.hero);PLAYERS.delete(id);renderBoard();}
+function renderBoard(){const all=[HOST,...PLAYERS.values()];$('board').innerHTML=(PLAYERS.size?`<span style="color:#7ef9ff">FIRST TO ${WIN} TAPES</span><br>`:'')+(PLAYERS.size?all.map(p=>`<span style="color:${p.css}">${p.name}</span> ${p.tapes}`).join('<br>'):'');}
+let toastT=0;function showToast(t){$('bn').textContent=t;$('bs').textContent='';$('banner').classList.add('show');bannerT=2;}
+function gotTape(p){p.tapes++;renderBoard();if(!winner&&PLAYERS.size&&p.tapes>=WIN){winner=p;$('bn').textContent=p.name+' WINS!';$('bs').textContent='FIRST TO '+WIN+' MIXTAPES';$('banner').classList.add('show');bannerT=8;sfxSpot();}}
+function stepGuest(p,dt){let mx=p.ix,my=-p.iy;const ml=Math.min(1,Math.hypot(mx,my));const spd=(p.run||ml>.9?14:7)*ml;
+if(S.mode==='play'&&ml>.08){const fx=-Math.sin(S.yaw),fz=-Math.cos(S.yaw),rx=Math.cos(S.yaw),rz=-Math.sin(S.yaw);const dx=fx*my+rx*mx,dz=fz*my+rz*mx,dl=Math.hypot(dx,dz)||1;
+p.x+=dx/dl*spd*dt;p.z+=dz/dl*spd*dt;const tf=Math.atan2(-dx,-dz);let df=tf-p.face;df=Math.atan2(Math.sin(df),Math.cos(df));p.face+=df*Math.min(1,dt*12);}
+// leash to the group so everyone stays on screen
+const cx=GC.x,cz=GC.z,d=Math.hypot(p.x-cx,p.z-cz),L=34;if(d>L){p.x=cx+(p.x-cx)/d*L;p.z=cz+(p.z-cz)/d*L;}
+collide(p,.55);p.x=clamp(p.x,BX0,BX1);p.z=clamp(p.z,BZ0,BZ1);
+for(const c of cars){const ddx=p.x-c.g.position.x,ddz=p.z-c.g.position.z,dd=Math.hypot(ddx,ddz);if(dd<2.6&&dd>0){p.x+=ddx/dd*(2.6-dd);p.z+=ddz/dd*(2.6-dd);}}
+const sp2=S.mode==='play'?spd:0;p.phase+=sp2*dt*1.5;const amp=Math.min(1,sp2/7)*.75;
+p.legs[0].rotation.x=Math.sin(p.phase)*amp;p.legs[1].rotation.x=-Math.sin(p.phase)*amp;p.arms[0].rotation.x=-Math.sin(p.phase)*amp*.8;p.arms[1].rotation.x=Math.sin(p.phase)*amp*.8;
+p.hero.position.set(p.x,Math.abs(Math.sin(p.phase))*.08*amp,p.z);p.hero.rotation.y=p.face;
+if(S.mode==='play'){for(const t of tapes)if(!t.got&&Math.hypot(p.x-t.x,p.z-t.z)<1.8){t.got=true;scene.remove(t.m);S.tapes++;sfxTape();updHUD();gotTape(p);checkDone();}
+for(const s of SPOTS)if(!s.got&&Math.hypot(p.x-s.x,p.z-s.z)<s.r){s.got=true;S.spots++;showBanner(s);sfxSpot();updHUD();checkDone();}}}
+const GC={x:0,z:0,spread:0};
+function groupCenter(){let x=S.x,z=S.z,n=1;for(const p of PLAYERS.values()){x+=p.x;z+=p.z;n++;}x/=n;z/=n;let m=0;
+for(const q of [S,...PLAYERS.values()])m=Math.max(m,Math.hypot(q.x-x,q.z-z));GC.x=x;GC.z=z;GC.spread=m;}
+// gamepads: each pad is its own guest
+function pollPads(){const gps=navigator.getGamepads?navigator.getGamepads():[];for(let i=0;i<gps.length;i++){const g=gps[i];const id='gp'+i;
+if(!g){if(PLAYERS.has(id))dropPlayer(id);continue;}const p=PLAYERS.get(id)||addPlayer(id,'PAD'+(i+1));
+const dz=v=>Math.abs(v)<.15?0:v;p.ix=dz(g.axes[0]||0);p.iy=dz(g.axes[1]||0);
+if(g.buttons[14]&&g.buttons[14].pressed)p.ix=-1;if(g.buttons[15]&&g.buttons[15].pressed)p.ix=1;if(g.buttons[12]&&g.buttons[12].pressed)p.iy=-1;if(g.buttons[13]&&g.buttons[13].pressed)p.iy=1;
+p.run=!!(g.buttons[0]&&g.buttons[0].pressed)||!!(g.buttons[7]&&g.buttons[7].pressed);
+if(S.mode==='title'&&g.buttons[9]&&g.buttons[9].pressed)$('start').click();}}
+// phones via PeerJS (WebRTC data channels)
+let peer=null,ROOM='';
+function makeRoom(){if(typeof Peer==='undefined'){$('jt').textContent='PHONE JOIN UNAVAILABLE';$('qr').style.display='none';return;}
+ROOM=Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random()*24)]).join('');
+peer=new Peer('oc97-'+ROOM);
+peer.on('open',()=>{const url=location.origin+location.pathname.replace(/[^/]*$/,'')+'pad.html#'+ROOM;$('qr').innerHTML='';
+try{new QRCode($('qr'),{text:url,width:150,height:150,correctLevel:QRCode.CorrectLevel.M});}catch(e){}
+$('jt').innerHTML='SCAN TO JOIN &middot; ROOM <b style="color:#fff">'+ROOM+'</b>';$('ju').textContent=url.replace(/^https?:\/\//,'');});
+peer.on('connection',conn=>{conn.on('data',d=>{if(!d||typeof d!=='object')return;
+if(d.t==='hi'){const p=addPlayer(conn.peer,d.name);conn.send({t:'you',name:p.name,css:p.css});}
+else if(d.t==='in'){const p=PLAYERS.get(conn.peer);if(p){p.ix=clamp(+d.x||0,-1,1);p.iy=clamp(+d.y||0,-1,1);p.run=!!d.r;}}
+else if(d.t==='start'&&S.mode==='title')$('start').click();});
+conn.on('close',()=>dropPlayer(conn.peer));conn.on('error',()=>dropPlayer(conn.peer));});
+peer.on('error',e=>{if(e&&e.type==='unavailable-id'){peer.destroy();makeRoom();}else if(e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error')){$('jt').textContent='RECONNECTING...';setTimeout(()=>{try{peer.reconnect();}catch(_){} },2000);}});
+peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect();}catch(_){}},1500);});
+// tell phones who has which tapes every second
+setInterval(()=>{if(!peer)return;for(const p of PLAYERS.values()){if(p.id.startsWith('gp'))continue;const c=peer.connections[p.id];if(c)for(const k of c)if(k.open)k.send({t:'score',tapes:p.tapes,win:winner?winner.name:null});}},1000);}
 const clock=new THREE.Clock();const tmpV=new THREE.Vector3();const camPos=new THREE.Vector3(-30,30,60);
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);S.t+=dt;
 let mx=0,my=0,run=false;
@@ -624,6 +687,7 @@ const dx=fx*my+rx*mx,dz=fz*my+rz*mx,dl=Math.hypot(dx,dz)||1;S.x+=dx/dl*spd*dt;S.
 const tf=Math.atan2(-dx,-dz);let df=tf-S.face;df=Math.atan2(Math.sin(df),Math.cos(df));S.face+=df*Math.min(1,dt*12);
 if(joy.id!==null&&look.id===null){let dy=S.face-S.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));S.yaw+=dy*Math.min(1,dt*1.2)*Math.abs(mx);}
 }
+if(PLAYERS.size){const d=Math.hypot(S.x-GC.x,S.z-GC.z);if(d>34){S.x=GC.x+(S.x-GC.x)/d*34;S.z=GC.z+(S.z-GC.z)/d*34;}}
 collide(S,.55);S.x=clamp(S.x,BX0,BX1);S.z=clamp(S.z,BZ0,BZ1);
 for(const c of cars){const r=c.r;c.t+=c.dir*c.sp*dt;if(c.t>r.b+5)c.t=r.a-5;if(c.t<r.a-5)c.t=r.b+5;
 const lane=r.h?c.dir*2.5:-c.dir*2.5;
@@ -633,7 +697,8 @@ S.phase+=spd*dt*1.5;const amp=Math.min(1,spd/7)*.75;
 legs[0].rotation.x=Math.sin(S.phase)*amp;legs[1].rotation.x=-Math.sin(S.phase)*amp;arms[0].rotation.x=-Math.sin(S.phase)*amp*.8;arms[1].rotation.x=Math.sin(S.phase)*amp*.8;
 hero.position.set(S.x,Math.abs(Math.sin(S.phase))*.08*amp,S.z);hero.rotation.y=S.face;
 for(const t of tapes){if(t.got)continue;t.m.rotation.y+=dt*2.4;t.m.position.y=1.3+Math.sin(S.t*2+t.ph)*.2;
-if(S.mode==='play'&&Math.hypot(S.x-t.x,S.z-t.z)<1.8){t.got=true;scene.remove(t.m);S.tapes++;sfxTape();updHUD();checkDone();}}
+if(S.mode==='play'&&Math.hypot(S.x-t.x,S.z-t.z)<1.8){t.got=true;scene.remove(t.m);S.tapes++;sfxTape();updHUD();gotTape(HOST);checkDone();}}
+pollPads();groupCenter();for(const p of PLAYERS.values())stepGuest(p,dt);
 if(S.mode==='play')for(const s of SPOTS){if(!s.got&&Math.hypot(S.x-s.x,S.z-s.z)<s.r){s.got=true;S.spots++;showBanner(s);sfxSpot();updHUD();checkDone();}}
 if(bannerT>0){bannerT-=dt;if(bannerT<=0)$('banner').classList.remove('show');}
 if(TRAIN.g){if(TRAIN.wait>0)TRAIN.wait-=dt;else{TRAIN.x+=TRAIN.dir*20*dt;if((TRAIN.dir>0&&TRAIN.x>BX1+60)||(TRAIN.dir<0&&TRAIN.x<BX0-60)){TRAIN.dir*=-1;TRAIN.wait=9;TRAIN.horn=false;}}
@@ -648,8 +713,8 @@ for(const n of NPCS)n.position.y=Math.abs(Math.sin(S.t*1.6+n.userData.p))*.05;
 if(waterTex){waterTex.offset.x=(S.t*.03)%1;}
 if(ball)ball.rotation.y+=dt*.15;
 if(S.mode==='title'){const a=S.t*.06;tmpV.set(-40+Math.sin(a)*70,26,Math.cos(a)*70+10);camPos.copy(tmpV);camera.position.copy(camPos);camera.lookAt(-40,3,0);}
-else{const dist=7.5,cp=Math.cos(S.pitch);tmpV.set(S.x+Math.sin(S.yaw)*cp*dist,1.6+Math.sin(S.pitch)*dist,S.z+Math.cos(S.yaw)*cp*dist);
-camPos.lerp(tmpV,Math.min(1,dt*9));camera.position.copy(camPos);camera.lookAt(S.x,1.7,S.z);
+else{const multi=PLAYERS.size>0,fx=multi?GC.x:S.x,fz=multi?GC.z:S.z,dist=multi?Math.min(70,10+GC.spread*1.5):7.5,pit=multi?Math.max(S.pitch,.7):S.pitch,cp=Math.cos(pit);tmpV.set(fx+Math.sin(S.yaw)*cp*dist,1.6+Math.sin(pit)*dist,fz+Math.cos(S.yaw)*cp*dist);
+camPos.lerp(tmpV,Math.min(1,dt*(multi?4:9)));camera.position.copy(camPos);camera.lookAt(fx,1.7,fz);
 const bz=bizAt(S.x,S.z),ln=streetAt(S.x,S.z)+(bz?'|'+bz:'');if(ln!==locName){locName=ln;const [a,b]=ln.split('|');$('loc').innerHTML=a+(b?'<br><span class="bz">'+b+'</span>':'');}drawMap();}
 for(const o of OCC){if(!o.userData.b){o.updateWorldMatrix(true,false);o.userData.b=new THREE.Box3().setFromObject(o).expandByScalar(3);}const b=o.userData.b,c=camera.position;o.visible=!(S.mode==='play'&&c.x>b.min.x&&c.x<b.max.x&&c.z>b.min.z&&c.z<b.max.z);}
 sky.position.copy(camera.position);
@@ -659,10 +724,10 @@ function checkDone(){if(S.done||S.spots<SPOTS.length)return;S.done=true;setTimeo
 $('keep').addEventListener('click',()=>$('done').classList.remove('on'));
 setInterval(()=>{if(S.mode==='play'&&!S.done)S.playT=(S.playT||0)+1;},1000);
 $('start').addEventListener('click',()=>{initAudio();if(AC&&AC.state!=='running')AC.resume().catch(()=>{});
-S.mode='play';S.yaw=Math.PI/2;camPos.set(S.x+7,4,S.z);$('title').classList.add('off');$('hud').classList.add('on');});
+S.mode='play';S.yaw=Math.PI/2;camPos.set(S.x+7,4,S.z);$('title').classList.add('off');$('hud').classList.add('on');$('join').classList.add('small');});
 const fontReady=document.fonts&&document.fonts.load?Promise.race([document.fonts.load('16px "Press Start 2P"'),new Promise(r=>setTimeout(r,2500))]):Promise.resolve();
 fontReady.catch(()=>{}).then(()=>{
-buildWorld();placeTapes(30);buildMap();
+buildWorld();placeTapes(30);buildMap();try{makeRoom();}catch(e){console.warn(e);}
 $('tt').textContent=tapes.length;$('st').textContent=SPOTS.length;
 frame();
 });
